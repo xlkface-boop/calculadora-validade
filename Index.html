@@ -1,11 +1,10 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calculadora de Validade de Estoque - Transpetro</title>
-    <!-- Importando a biblioteca jsPDF para gerar o PDF -->
+    <title>Calculadora de Validade - Transpetro</title>
+    <!-- Importando a biblioteca jsPDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         body {
@@ -143,7 +142,7 @@
 
         const dataFabricacao = new Date(fabInput + 'T00:00:00');
         
-        // Pega a data atual do sistema (zerando as horas para comparar corretamente)
+        // Pega a data atual do sistema automaticamente (zerando as horas)
         const dataAtual = new Date();
         dataAtual.setHours(0, 0, 0, 0);
 
@@ -199,12 +198,12 @@
 
         // Cabeçalho do PDF
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(14);
+        doc.setFontSize(13);
         doc.text("** RECUSA DE MATERIAL NÃO ATINGINDO O ESTIPULADOS CONTRATUAL **", 14, 20, { maxWidth: 180 });
 
         // Corpo do arquivo
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(12);
+        doc.setFontSize(11);
         const textoCorpo = "Este material não atingiu os 70% de validade estipulados no ato do contrato entre Transpetro e o fornecedor em questão, desta forma não podemos aceitar o material. E estamos devolvendo o mesmo.\n\nObrigado.";
         
         doc.text(textoCorpo, 14, 40, { maxWidth: 180 });
