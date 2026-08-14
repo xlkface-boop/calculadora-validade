@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calculadora de Validade - Transpetro</title>
+    <title>Controle de Recebimento - Transpetro</title>
     <!-- Importando a biblioteca jsPDF e html2canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -35,12 +35,16 @@
             font-weight: bold;
             color: #555;
         }
-        input[type="text"], input[type="number"], select {
+        input[type="text"], input[type="number"], select, textarea {
             width: 100%;
             padding: 10px;
             border: 1px solid #ccc;
             border-radius: 4px;
             box-sizing: border-box;
+        }
+        textarea {
+            resize: vertical;
+            height: 80px;
         }
         input:read-only {
             background-color: #e9ecef;
@@ -70,6 +74,14 @@
         }
         button:hover {
             background-color: #0056b3;
+        }
+        .secao-motivo {
+            display: none;
+            background: #fdfefe;
+            padding: 10px;
+            border: 1px dashed #ccc;
+            border-radius: 6px;
+            margin-top: 10px;
         }
         #resultado {
             margin-top: 20px;
@@ -105,7 +117,7 @@
 <body>
 
 <div class="container" id="conteudoParaPrint">
-    <h2>Validação de Materiais de Estoque</h2>
+    <h2>Controle de Recebimento de Estoque</h2>
     
     <div class="form-group">
         <label for="dataChecagem">Data da Checagem (Hoje):</label>
@@ -113,34 +125,52 @@
     </div>
 
     <div class="form-group">
-        <label for="dataFabricacao">Data de Fabricação (DD/MM/AAAA ou AAAA-MM-DD):</label>
-        <input type="text" id="dataFabricacao" placeholder="Ex: 01/01/2026 ou 2026-01-01">
+        <label for="motivoRecusa">Motivo / Tipo de Verificação:</label>
+        <select id="motivoRecusa" onchange="alternarCamposMotivo()">
+            <option value="validade">Validade de Estoque (Regra dos 70%)</option>
+            <option value="partnumber">Part Number Incorreto ou Falta de Part Number</option>
+            <option value="divergente">Material Divergente do Solicitante</option>
+        </select>
     </div>
 
-    <div class="form-group">
-        <label>Tempo de Validade do Material:</label>
-        <div class="inline-group">
-            <input type="number" id="tempoValidade" placeholder="Ex: 5" min="1">
-            <select id="tipoTempo">
-                <option value="anos">Anos</option>
-                <option value="meses">Meses</option>
-                <option value="dias">Dias</option>
-            </select>
+    <!-- Seção exclusiva para Validade -->
+    <div id="blocoValidade" class="secao-motivo" style="display: block;">
+        <div class="form-group">
+            <label for="dataFabricacao">Data de Fabricação (DD/MM/AAAA):</label>
+            <input type="text" id="dataFabricacao" placeholder="Ex: 01/01/2026">
+        </div>
+        <div class="form-group">
+            <label>Tempo de Validade do Material:</label>
+            <div class="inline-group">
+                <input type="number" id="tempoValidade" placeholder="Ex: 5" min="1">
+                <select id="tipoTempo">
+                    <option value="anos">Anos</option>
+                    <option value="meses">Meses</option>
+                    <option value="dias">Dias</option>
+                </select>
+            </div>
         </div>
     </div>
 
-    <button onclick="calcularValidade()">Calcular Validade</button>
+    <!-- Seção exclusiva para Material Divergente -->
+    <div id="blocoDivergente" class="secao-motivo">
+        <div class="form-group">
+            <label for="detalhesDivergencia">Detalhe a Divergência Encontrada:</label>
+            <textarea id="detalhesDivergencia" placeholder="Ex: O material entregue possui especificação técnica/medida diferente da solicitada na ordem de compra."></textarea>
+        </div>
+    </div>
+
+    <button onclick="processarAnalise()">Processar Análise</button>
 
     <div id="resultado"></div>
 
     <div id="btnPdfContainer">
-        <button class="btn-pdf" onclick="gerarPDF()">Gerar PDF de Recusa com Prova de Cálculo</button>
+        <button class="btn-pdf" onclick="gerarPDF()">Gerar PDF de Recusa Oficial</button>
     </div>
 </div>
 
 <script>
-    // Variáveis globais para armazenar os dados do último cálculo bem-sucedido
-    let dadosCalculo = {};
+    let dadosRelatorio = {};
 
     const dataAtualObj = new Date();
     dataAtualObj.setHours(0, 0, 0, 0);
@@ -151,22 +181,27 @@
     
     document.getElementById('dataChecagem').value = `${diaFormatado}/${mesFormatado}/${anoFormatado}`;
 
+    function alternarCamposMotivo() {
+        const tipo = document.getElementById('motivoRecusa').value;
+        document.getElementById('blocoValidade').style.display = (tipo === 'validade') ? 'block' : 'none';
+        document.getElementById('blocoDivergente').style.display = (tipo === 'divergente') ? 'block' : 'none';
+        document.getElementById('resultado').style.display = 'none';
+        document.getElementById('btnPdfContainer').style.display = 'none';
+    }
+
     function converterParaDataJS(inputTexto) {
         if (!inputTexto) return null;
         inputTexto = inputTexto.trim();
-
         const regexBR = /^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/;
         if (regexBR.test(inputTexto)) {
             const partes = inputTexto.match(regexBR);
             return new Date(`${partes[3]}-${partes[2]}-${partes[1]}T00:00:00`);
         }
-
         const regexISO = /^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/;
         if (regexISO.test(inputTexto)) {
             const partes = inputTexto.match(regexISO);
             return new Date(`${partes[1]}-${partes[2]}-${partes[3]}T00:00:00`);
         }
-
         return null;
     }
 
@@ -177,68 +212,82 @@
         return `${d}/${m}/${a}`;
     }
 
-    function calcularValidade() {
-        const fabInput = document.getElementById('dataFabricacao').value;
-        const tempoValor = parseInt(document.getElementById('tempoValidade').value);
-        const tipoTempo = document.getElementById('tipoTempo').value;
+    function processarAnalise() {
+        const tipo = document.getElementById('motivoRecusa').value;
         const resultadoDiv = document.getElementById('resultado');
         const btnPdfContainer = document.getElementById('btnPdfContainer');
 
-        const dataFabricacao = converterParaDataJS(fabInput);
+        dadosRelatorio = { tipo: tipo, checagem: `${diaFormatado}/${mesFormatado}/${anoFormatado}` };
 
-        if (!dataFabricacao || isNaN(dataFabricacao.getTime()) || isNaN(tempoValor) || tempoValor <= 0) {
-            alert('Por favor, digite uma data de fabricação válida (ex: 01/01/2026) e o tempo de validade.');
-            return;
-        }
+        if (tipo === 'validade') {
+            const fabInput = document.getElementById('dataFabricacao').value;
+            const tempoValor = parseInt(document.getElementById('tempoValidade').value);
+            const tipoTempo = document.getElementById('tipoTempo').value;
 
-        if (dataAtualObj < dataFabricacao) {
-            alert('A data de fabricação não pode ser posterior à data atual de checagem.');
-            return;
-        }
+            const dataFabricacao = converterParaDataJS(fabInput);
+            if (!dataFabricacao || isNaN(dataFabricacao.getTime()) || isNaN(tempoValor) || tempoValor <= 0) {
+                alert('Preencha a data de fabricação válida e o tempo de validade.');
+                return;
+            }
 
-        let dataValidade = new Date(dataFabricacao.getTime());
-        if (tipoTempo === 'anos') {
-            dataValidade.setFullYear(dataValidade.getFullYear() + tempoValor);
-        } else if (tipoTempo === 'meses') {
-            dataValidade.setMonth(dataValidade.getMonth() + tempoValor);
-        } else if (tipoTempo === 'dias') {
-            dataValidade.setDate(dataValidade.getDate() + tempoValor);
-        }
+            if (dataAtualObj < dataFabricacao) {
+                alert('A data de fabricação não pode ser futura.');
+                return;
+            }
 
-        const msDia = 1000 * 60 * 60 * 24;
-        const vidaUtilTotalDias = Math.round((dataValidade - dataFabricacao) / msDia);
-        const vidaUtilRestanteDias = Math.round((dataValidade - dataAtualObj) / msDia);
+            let dataValidade = new Date(dataFabricacao.getTime());
+            if (tipoTempo === 'anos') dataValidade.setFullYear(dataValidade.getFullYear() + tempoValor);
+            else if (tipoTempo === 'meses') dataValidade.setMonth(dataValidade.getMonth() + tempoValor);
+            else if (tipoTempo === 'dias') dataValidade.setDate(dataValidade.getDate() + tempoValor);
 
-        if (vidaUtilRestanteDias <= 0) {
+            const msDia = 1000 * 60 * 60 * 24;
+            const vidaUtilTotalDias = Math.round((dataValidade - dataFabricacao) / msDia);
+            const vidaUtilRestanteDias = Math.round((dataValidade - dataAtualObj) / msDia);
+
+            if (vidaUtilRestanteDias <= 0) {
+                resultadoDiv.className = 'vermelho';
+                resultadoDiv.innerHTML = 'Material Vencido! Recusar material.';
+                resultadoDiv.style.display = 'block';
+                btnPdfContainer.style.display = 'block';
+                dadosRelatorio.detalhes = "Material vencido.";
+                dadosRelatorio.percentual = 0;
+                return;
+            }
+
+            const percentualRestante = (vidaUtilRestanteDias / vidaUtilTotalDias) * 100;
+            dadosRelatorio.fabricacao = formatarDataBR(dataFabricacao);
+            dadosRelatorio.validadeFinal = formatarDataBR(dataValidade);
+            dadosRelatorio.totalDias = vidaUtilTotalDias;
+            dadosRelatorio.restanteDias = vidaUtilRestanteDias;
+            dadosRelatorio.percentual = percentualRestante.toFixed(2);
+
+            resultadoDiv.style.display = 'block';
+            if (percentualRestante >= 70) {
+                resultadoDiv.className = 'verde';
+                resultadoDiv.innerHTML = `Dentro da validade (${percentualRestante.toFixed(2)}% restante). Aceitar material.`;
+                btnPdfContainer.style.display = 'none';
+            } else {
+                resultadoDiv.className = 'vermelho';
+                resultadoDiv.innerHTML = `Fora dos 70% de validade (${percentualRestante.toFixed(2)}% restante). Recusar material.`;
+                btnPdfContainer.style.display = 'block';
+            }
+
+        } else if (tipo === 'partnumber') {
             resultadoDiv.className = 'vermelho';
-            resultadoDiv.innerHTML = 'Material Vencido! Recusar material.';
+            resultadoDiv.innerHTML = 'Part Number incorreto ou ausente. Recusar material.';
             resultadoDiv.style.display = 'block';
             btnPdfContainer.style.display = 'block';
-            dadosCalculo = { fabricacao: formatarDataBR(dataFabricacao), validadeFinal: formatarDataBR(dataValidade), checagem: formatarDataBR(dataAtualObj), totalDias: vidaUtilTotalDias, restanteDias: vidaUtilRestanteDias, percentual: 0 };
-            return;
-        }
 
-        const percentualRestante = (vidaUtilRestanteDias / vidaUtilTotalDias) * 100;
-
-        // Salva os dados para o PDF
-        dadosCalculo = {
-            fabricacao: formatarDataBR(dataFabricacao),
-            validadeFinal: formatarDataBR(dataValidade),
-            checagem: formatarDataBR(dataAtualObj),
-            totalDias: vidaUtilTotalDias,
-            restanteDias: vidaUtilRestanteDias,
-            percentual: percentualRestante.toFixed(2)
-        };
-
-        resultadoDiv.style.display = 'block';
-
-        if (percentualRestante >= 70) {
-            resultadoDiv.className = 'verde';
-            resultadoDiv.innerHTML = `Dentro da validade (${percentualRestante.toFixed(2)}% restante). Aceitar material.`;
-            btnPdfContainer.style.display = 'none';
-        } else {
+        } else if (tipo === 'divergente') {
+            const textoDivergencia = document.getElementById('detalhesDivergencia').value.trim();
+            if (!textoDivergencia) {
+                alert('Por favor, descreva a divergência encontrada pelo solicitante.');
+                return;
+            }
+            dadosRelatorio.textoDivergencia = textoDivergencia;
             resultadoDiv.className = 'vermelho';
-            resultadoDiv.innerHTML = `Fora dos 70% de validade (${percentualRestante.toFixed(2)}% restante). Recusar material.`;
+            resultadoDiv.innerHTML = 'Material divergente do solicitado. Recusar material.';
+            resultadoDiv.style.display = 'block';
             btnPdfContainer.style.display = 'block';
         }
     }
@@ -247,7 +296,7 @@
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
 
-        // 1. Cabeçalho institucional corporativo
+        // Cabeçalho institucional
         doc.setFont("helvetica", "bold");
         doc.setFontSize(11);
         doc.text("PETROBRAS TRANSPORTE S.A. — TRANSPETRO", 14, 15);
@@ -264,45 +313,51 @@
         doc.setFont("helvetica", "normal");
         doc.setFontSize(10);
 
-        const textoCorpo = 
-            "Comunicamos formalmente ao fornecedor que o lote de material apresentado para recebimento nesta unidade da Transpetro foi submetido à verificação de conformidade de vida útil.\n\n" +
-            "Ficou constatado que o referido material não atingiu o patamar mínimo de 70% (setenta por cento) de validade remanescente, percentual este estipulado de forma obrigatória nas cláusulas gerais do contrato de fornecimento vigente.\n\n" +
-            "Desta forma, o recebimento do item fica rigorosamente recusado por descumprimento das diretrizes contratuais de estocagem e garantia. O material encontra-se disponível para os trâmites de devolução ao fornecedor.";
+        let textoCorpo = "";
+
+        if (dadosRelatorio.tipo === 'validade') {
+            textoCorpo = 
+                "Comunicamos formalmente ao fornecedor que o lote de material apresentado para recebimento nesta unidade da Transpetro foi submetido à verificação de conformidade de vida útil.\n\n" +
+                `Ficou constatado que o referido material não atingiu o patamar mínimo de 70% de validade remanescente exigido em contrato (apresentando apenas ${dadosRelatorio.percentual}%).\n\n` +
+                "Desta forma, o recebimento do item fica rigorosamente recusado, procedendo-se com a devolução imediata ao fornecedor.";
+        } else if (dadosRelatorio.tipo === 'partnumber') {
+            textoCorpo = 
+                "Comunicamos formalmente ao fornecedor que o material apresentado para recebimento nesta unidade da Transpetro foi recusado devido à incorreção ou ausência do Part Number (código de peça/identificação) obrigatório.\n\n" +
+                "O item não atende aos requisitos de rastreabilidade e especificação técnica do contrato de fornecimento vigente, sendo devolvido.";
+        } else if (dadosRelatorio.tipo === 'divergente') {
+            textoCorpo = 
+                "Comunicamos formalmente ao fornecedor que o material apresentado para recebimento nesta unidade da Transpetro foi recusado por apresentar divergência em relação ao que foi solicitado pelo requisitante.\n\n" +
+                `Detalhamento da divergência apontada:\n"${dadosRelatorio.textoDivergencia}"\n\n` +
+                "Desta forma, o recebimento é sumariamente recusado com devolução do item.";
+        }
 
         doc.text(textoCorpo, 14, 46, { maxWidth: 182, lineHeightFactor: 1.3 });
 
-        // 2. Quadro com a Memória de Cálculo e Justificativa Técnica (Prova do Cálculo)
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
-        doc.text("MEMÓRIA DE CÁLCULO E JUSTIFICATIVA TÉCNICA (AUDITORIA)", 14, 96);
-
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9.5);
-        const yCalc = 102;
-        doc.text(`• Data de Fabricação do Material: ${dadosCalculo.fabricacao}`, 14, yCalc + 6);
-        doc.text(`• Data de Vencimento Final (Fabricação + Prazo): ${dadosCalculo.validadeFinal}`, 14, yCalc + 13);
-        doc.text(`• Data de Recebimento / Checagem no Estoque: ${dadosCalculo.checagem}`, 14, yCalc + 20);
-        doc.text(`• Vida Útil Total de Fábrica: ${dadosCalculo.totalDias} dias (100%)`, 14, yCalc + 27);
-        doc.text(`• Vida Útil Restante no Recebimento: ${dadosCalculo.restanteDias} dias`, 14, yCalc + 34);
-        doc.text(`• Percentual Calculado: ${dadosCalculo.percentual}% de validade remanescente`, 14, yCalc + 41);
-
-        doc.setFont("helvetica", "bold");
-        doc.text(`> CRITÉRIO APLICADO: O contrato exige no mínimo 70%. Como o material apresentou ${dadosCalculo.percentual}%, a recusa é mandatória.`, 14, yCalc + 50, { maxWidth: 182 });
+        // Bloco de Justificativa / Prova caso seja Validade
+        let yPosAssinatura = 135;
+        if (dadosRelatorio.tipo === 'validade') {
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10);
+            doc.text("MEMÓRIA DE CÁLCULO E JUSTIFICATIVA TÉCNICA:", 14, 98);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9);
+            doc.text(`• Fabricação: ${dadosRelatorio.fabricacao} | Vencimento Final: ${dadosRelatorio.validadeFinal}`, 14, 105);
+            doc.text(`• Vida Útil Total: ${dadosRelatorio.totalDias} dias | Restante: ${dadosRelatorio.restanteDias} dias (${dadosRelatorio.percentual}%)`, 14, 112);
+            yPosAssinatura = 145;
+        }
 
         // Campos de Assinatura
-        const yPos = 165;
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
-        doc.text("RESPONSÁVEL PELA INSPEÇÃO / RECEBIMENTO:", 14, yPos);
+        doc.text("RESPONSÁVEL PELA INSPEÇÃO / RECEBIMENTO:", 14, yPosAssinatura);
         
         doc.setFont("helvetica", "normal");
-        doc.text("Nome: ____________________________________________________", 14, yPos + 10);
-        doc.text("Matrícula: ________________________", 14, yPos + 20);
-        doc.text("Data da Recusa: ____/____/________", 14, yPos + 30);
+        doc.text("Nome: ____________________________________________________", 14, yPosAssinatura + 10);
+        doc.text("Matrícula: ________________________", 14, yPosAssinatura + 20);
+        doc.text("Data da Recusa: ____/____/________", 14, yPosAssinatura + 30);
 
-        // 3. Captura da tela do sistema como evidência na segunda página
+        // Captura da tela como anexo
         const elementoTela = document.getElementById('conteudoParaPrint');
-        
         try {
             const canvas = await html2canvas(elementoTela, { scale: 2 });
             const imgData = canvas.toDataURL('image/png');
@@ -318,10 +373,10 @@
 
             doc.addImage(imgData, 'PNG', 14, 28, 180, 0);
         } catch (erro) {
-            console.error("Erro ao capturar evidência da tela:", erro);
+            console.error("Erro ao capturar evidência:", erro);
         }
 
-        doc.save("termo_recusa_transpetro_com_memoria_calculo.pdf");
+        doc.save("termo_recusa_transpetro_oficial.pdf");
     }
 </script>
 
