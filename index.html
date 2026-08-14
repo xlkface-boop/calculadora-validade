@@ -312,6 +312,21 @@
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
 
+        // Função para adicionar rodapé em todas as páginas geradas
+        function adicionarRodapePDF() {
+            const totalPaginas = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= totalPaginas; i++) {
+                doc.setPage(i);
+                doc.setFont("helvetica", "italic");
+                doc.setFontSize(8);
+                doc.setTextColor(100, 100, 100);
+                doc.text(
+                    "Sistema Automático de Recusa de Materiais — Criado por Dário João Torres. Todos os direitos reservados.",
+                    105, 290, { align: "center" }
+                );
+            }
+        }
+
         // Cabeçalho institucional
         doc.setFont("helvetica", "bold");
         doc.setFontSize(11);
@@ -386,7 +401,6 @@
             doc.setFontSize(10);
             doc.text("Registro visual extraído no ato da checagem para fins de apuração.", 14, 22);
 
-            // Mantém a proporção correta para caber perfeitamente na página A4
             const imgProps = doc.getImageProperties(imgData);
             const pdfWidth = 180;
             const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
@@ -395,6 +409,9 @@
         } catch (erro) {
             console.error("Erro ao capturar evidência:", erro);
         }
+
+        // Aplica o rodapé em todas as páginas do PDF
+        adicionarRodapePDF();
 
         doc.save("termo_recusa_transpetro_oficial.pdf");
     }
