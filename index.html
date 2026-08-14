@@ -260,21 +260,22 @@
             const vidaUtilTotalDias = Math.round((dataValidade - dataFabricacao) / msDia);
             const vidaUtilRestanteDias = Math.round((dataValidade - dataAtualObj) / msDia);
 
-            if (vidaUtilRestanteDias <= 0) {
-                resultadoDiv.className = 'vermelho';
-                resultadoDiv.innerHTML = 'Material Vencido! Recusar material.';
-                resultadoDiv.style.display = 'block';
-                btnPdfContainer.style.display = 'block';
-                dadosRelatorio.detalhes = "Material vencido.";
-                dadosRelatorio.percentual = 0;
-                return;
-            }
-
-            const percentualRestante = (vidaUtilRestanteDias / vidaUtilTotalDias) * 100;
+            // Preenche sempre os dados para a memória de cálculo do PDF
             dadosRelatorio.fabricacao = formatarDataBR(dataFabricacao);
             dadosRelatorio.validadeFinal = formatarDataBR(dataValidade);
             dadosRelatorio.totalDias = vidaUtilTotalDias;
             dadosRelatorio.restanteDias = vidaUtilRestanteDias;
+
+            if (vidaUtilRestanteDias <= 0) {
+                dadosRelatorio.percentual = "0.00";
+                resultadoDiv.className = 'vermelho';
+                resultadoDiv.innerHTML = 'Material Vencido! (0% restante). Recusar material.';
+                resultadoDiv.style.display = 'block';
+                btnPdfContainer.style.display = 'block';
+                return;
+            }
+
+            const percentualRestante = (vidaUtilRestanteDias / vidaUtilTotalDias) * 100;
             dadosRelatorio.percentual = percentualRestante.toFixed(2);
 
             resultadoDiv.style.display = 'block';
@@ -404,7 +405,6 @@
             const pdfWidth = 170;
             let pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
-            // Limita a altura máxima para garantir que a imagem caiba inteira na página com margem de segurança
             const maxHeight = 230; 
             if (pdfHeight > maxHeight) {
                 pdfHeight = maxHeight;
