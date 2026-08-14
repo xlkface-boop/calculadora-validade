@@ -13,6 +13,9 @@
             background-color: #f4f7f6;
             margin: 0;
             padding: 20px;
+            display: flex;
+            flex-direction: column;
+            min-height: 90vh;
         }
         .container {
             max-width: 600px;
@@ -21,6 +24,7 @@
             border-radius: 8px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
             margin: auto;
+            flex: 1;
         }
         h2 {
             text-align: center;
@@ -112,6 +116,14 @@
         .btn-pdf:hover {
             background-color: #bd2130;
         }
+        footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 12px;
+            color: #666;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -156,7 +168,7 @@
     <div id="blocoDivergente" class="secao-motivo">
         <div class="form-group">
             <label for="detalhesDivergencia">Detalhe a Divergência Encontrada:</label>
-            <textarea id="detalhesDivergencia" placeholder="Ex: O material entregue possui especificação técnica/medida diferente da solicitada na ordem de compra."></textarea>
+            <textarea id="detalhesDivergencia" placeholder="Ex: O material entregue possui especificação técnica/medida diferente da solicitada."></textarea>
         </div>
     </div>
 
@@ -168,6 +180,10 @@
         <button class="btn-pdf" onclick="gerarPDF()">Gerar PDF de Recusa Oficial</button>
     </div>
 </div>
+
+<footer>
+    Sistema Automático de Recusa de Materiais — Criado por <strong>Dário João Torres</strong>. Todos os direitos reservados.
+</footer>
 
 <script>
     let dadosRelatorio = {};
@@ -333,7 +349,6 @@
 
         doc.text(textoCorpo, 14, 46, { maxWidth: 182, lineHeightFactor: 1.3 });
 
-        // Bloco de Justificativa / Prova caso seja Validade
         let yPosAssinatura = 135;
         if (dadosRelatorio.tipo === 'validade') {
             doc.setFont("helvetica", "bold");
@@ -356,10 +371,10 @@
         doc.text("Matrícula: ________________________", 14, yPosAssinatura + 20);
         doc.text("Data da Recusa: ____/____/________", 14, yPosAssinatura + 30);
 
-        // Captura da tela como anexo
+        // Captura da tela como anexo com ajuste de proporção para evitar cortes
         const elementoTela = document.getElementById('conteudoParaPrint');
         try {
-            const canvas = await html2canvas(elementoTela, { scale: 2 });
+            const canvas = await html2canvas(elementoTela, { scale: 1.5, logging: false });
             const imgData = canvas.toDataURL('image/png');
 
             doc.addPage();
@@ -371,7 +386,12 @@
             doc.setFontSize(10);
             doc.text("Registro visual extraído no ato da checagem para fins de apuração.", 14, 22);
 
-            doc.addImage(imgData, 'PNG', 14, 28, 180, 0);
+            // Mantém a proporção correta para caber perfeitamente na página A4
+            const imgProps = doc.getImageProperties(imgData);
+            const pdfWidth = 180;
+            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+            doc.addImage(imgData, 'PNG', 14, 28, pdfWidth, pdfHeight);
         } catch (erro) {
             console.error("Erro ao capturar evidência:", erro);
         }
